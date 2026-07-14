@@ -33,3 +33,10 @@ _*The objective of this machine is to gain root access by exploiting vulnerabili
 - SSH
 - Vim
 - GTFOBins
+
+## Reconnaissance
+
+### Finding the Target IP
+
+
+> ![Netdiscover][]
