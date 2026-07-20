@@ -38,5 +38,5 @@ _*The objective of this machine is to gain root access by exploiting vulnerabili
 
 ### Finding the Target IP
 
-
+The target IP address was identified using Netdiscover.
 > ![Netdiscover](images/netdiscover.png)
