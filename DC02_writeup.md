@@ -39,4 +39,10 @@ _*The objective of this machine is to gain root access by exploiting vulnerabili
 ### Finding the Target IP
 
 The target IP address was identified using Netdiscover.
-> ![Netdiscover](images/netdiscover.png)
+> ![Netdiscover](images/dc2-netdiscover.png)
+
+</br>
+
+### Fixing Name Resolution
+
+The website was not loading correctly. The target domain was added to the `/etc/hosts` file to resolve the issue.
